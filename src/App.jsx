@@ -53,7 +53,8 @@ export default function AttendanceChecker() {
       for (let i = 0; i < requests.length; i++) {
         const req = requests[i];
         const status = req.getAttribute('Status');
-        if (status === 'Approved') {
+        // Include Approved AND Pending (not Cancelled)
+        if (status === 'Approved' || status === 'Pending') {
           const dateOff = req.getElementsByTagName('TimeOffDate')[0]?.textContent;
           const firstName = req.getElementsByTagName('Firstname')[0]?.textContent;
           const lastName = req.getElementsByTagName('Lastname')[0]?.textContent;
@@ -73,7 +74,7 @@ export default function AttendanceChecker() {
       }
       setPtoData(ptoList);
       setXmlInput('');
-      alert(`Loaded ${ptoList.length} PTO records`);
+      alert(`Loaded ${ptoList.length} PTO records (Approved + Pending)`);
     } catch (err) {
       alert('Failed to parse XML: ' + err.message);
     }
