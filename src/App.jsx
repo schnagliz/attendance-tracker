@@ -84,12 +84,25 @@ export default function AttendanceChecker() {
       alert('Please enter a name');
       return;
     }
+    
+    // Debug: log schedule data structure
+    if (scheduleData && scheduleData.length > 0) {
+      console.log('Schedule data loaded:', scheduleData.length, 'records');
+      console.log('First schedule record:', scheduleData[0]);
+      console.log('Column names:', Object.keys(scheduleData[0]));
+    } else {
+      console.log('No schedule data loaded');
+    }
+    
     const results = [];
     if (masterData) {
       const found = masterData.filter(person => {
         const fullName = `${person['First Name'] || ''} ${person['Last Name'] || ''}`.toLowerCase();
         return fullName.includes(searchName.toLowerCase());
       });
+      
+      console.log('Found', found.length, 'matching people in master data');
+      
       found.forEach(person => {
         const fullName = `${person['First Name']} ${person['Last Name']}`;
         const dept = person.Department || '';
@@ -105,10 +118,23 @@ export default function AttendanceChecker() {
             const pFirstName = (person['First Name'] || '').toLowerCase().trim();
             const pLastName = (person['Last Name'] || '').toLowerCase().trim();
             
-            return sFirstName === pFirstName && sLastName === pLastName;
+            const match = sFirstName === pFirstName && sLastName === pLastName;
+            
+            if (pFirstName === 'steve') {
+              console.log('Checking Steve:', {
+                scheduleFirstName: sFirstName,
+                scheduleLastName: sLastName,
+                personFirstName: pFirstName,
+                personLastName: pLastName,
+                match: match
+              });
+            }
+            
+            return match;
           });
           
           if (scheduleRecord?.Schedule) {
+            console.log('Found schedule for', fullName, ':', scheduleRecord.Schedule);
             schedule = scheduleRecord.Schedule;
           }
         }
@@ -120,6 +146,7 @@ export default function AttendanceChecker() {
                                  deptLower.includes('curriculum') ||
                                  deptLower.includes('counseling');
           schedule = isInstructional ? '7:50 AM - 3:50 PM (Instructional)' : '8:30 AM - 4:30 PM (Non-Instructional)';
+          console.log('Using default schedule for', fullName);
         }
         
         results.push({
