@@ -94,17 +94,30 @@ export default function AttendanceChecker() {
         const fullName = `${person['First Name']} ${person['Last Name']}`;
         const dept = person.Department || '';
         const deptLower = dept.toLowerCase();
-        const isInstructional = deptLower.includes('instructional') || 
-                               deptLower.includes('support services') ||
-                               deptLower.includes('curriculum') ||
-                               deptLower.includes('counseling');
-        let schedule = isInstructional ? '7:50 AM - 3:50 PM (Instructional)' : '8:30 AM - 4:30 PM (Non-Instructional)';
+        
+        let schedule = null;
+        
+        // First check if they're in the schedule data
         if (scheduleData) {
-          const scheduleRecord = scheduleData.find(s => 
-            (s.Name || '').toLowerCase().includes(fullName.toLowerCase())
-          );
-          if (scheduleRecord?.Schedule) schedule = scheduleRecord.Schedule;
+          const scheduleRecord = scheduleData.find(s => {
+            const sName = (s.Name || '').toLowerCase().trim();
+            return sName === fullName.toLowerCase() || sName.includes(fullName.toLowerCase());
+          });
+          
+          if (scheduleRecord?.Schedule) {
+            schedule = scheduleRecord.Schedule;
+          }
         }
+        
+        // If not in schedule data, use department-based defaults
+        if (!schedule) {
+          const isInstructional = deptLower.includes('instructional') || 
+                                 deptLower.includes('support services') ||
+                                 deptLower.includes('curriculum') ||
+                                 deptLower.includes('counseling');
+          schedule = isInstructional ? '7:50 AM - 3:50 PM (Instructional)' : '8:30 AM - 4:30 PM (Non-Instructional)';
+        }
+        
         results.push({
           name: fullName,
           title: person['Job Title Description'] || '',
