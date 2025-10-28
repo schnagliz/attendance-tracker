@@ -18,20 +18,20 @@ export default function AttendanceChecker() {
 
   // Load saved data on startup
   React.useEffect(() => {
-    const loadSavedData = async () => {
+    const loadSavedData = () => {
       try {
-        // Load master staff data
-        const masterResult = await window.storage.get('master-staff-data');
-        if (masterResult) {
-          const data = JSON.parse(masterResult.value);
+        // Load master staff data from localStorage
+        const masterSaved = localStorage.getItem('master-staff-data');
+        if (masterSaved) {
+          const data = JSON.parse(masterSaved);
           setMasterData(data);
           console.log('Loaded saved master data:', data.length, 'records');
         }
 
-        // Load schedule data
-        const scheduleResult = await window.storage.get('schedule-data');
-        if (scheduleResult) {
-          const data = JSON.parse(scheduleResult.value);
+        // Load schedule data from localStorage
+        const scheduleSaved = localStorage.getItem('schedule-data');
+        if (scheduleSaved) {
+          const data = JSON.parse(scheduleSaved);
           setScheduleData(data);
           console.log('Loaded saved schedule data:', data.length, 'records');
         }
@@ -45,26 +45,26 @@ export default function AttendanceChecker() {
     loadSavedData();
   }, []);
 
-  const saveMasterData = async () => {
+  const saveMasterData = () => {
     if (!masterData) {
       alert('No master data to save');
       return;
     }
     try {
-      await window.storage.set('master-staff-data', JSON.stringify(masterData));
+      localStorage.setItem('master-staff-data', JSON.stringify(masterData));
       alert(`Saved ${masterData.length} staff records! This data will auto-load next time.`);
     } catch (err) {
       alert('Failed to save: ' + err.message);
     }
   };
 
-  const saveScheduleData = async () => {
+  const saveScheduleData = () => {
     if (!scheduleData) {
       alert('No schedule data to save');
       return;
     }
     try {
-      await window.storage.set('schedule-data', JSON.stringify(scheduleData));
+      localStorage.setItem('schedule-data', JSON.stringify(scheduleData));
       alert(`Saved ${scheduleData.length} schedule records! This data will auto-load next time.`);
     } catch (err) {
       alert('Failed to save: ' + err.message);
