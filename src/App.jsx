@@ -110,13 +110,17 @@ export default function AttendanceChecker() {
         
         let schedule = null;
         
-        // Check if they're in the schedule data (with First Name + Last Name columns)
+        // Check if they're in the schedule data
         if (scheduleData) {
           const scheduleRecord = scheduleData.find(s => {
-            const sFirstName = (s['First Name'] || '').toLowerCase().trim();
-            const sLastName = (s['Last Name'] || '').toLowerCase().trim();
+            // Handle both proper column names and generic _1, _2, _3 parsing
+            const sFirstName = (s['First Name'] || s._1 || s['_1'] || '').toLowerCase().trim();
+            const sLastName = (s['Last Name'] || s._2 || s['_2'] || '').toLowerCase().trim();
             const pFirstName = (person['First Name'] || '').toLowerCase().trim();
             const pLastName = (person['Last Name'] || '').toLowerCase().trim();
+            
+            // Skip header rows
+            if (sFirstName === 'first name' || sFirstName === 'firstname') return false;
             
             const match = sFirstName === pFirstName && sLastName === pLastName;
             
@@ -133,9 +137,12 @@ export default function AttendanceChecker() {
             return match;
           });
           
-          if (scheduleRecord?.Schedule) {
-            console.log('Found schedule for', fullName, ':', scheduleRecord.Schedule);
-            schedule = scheduleRecord.Schedule;
+          if (scheduleRecord) {
+            const scheduleValue = scheduleRecord.Schedule || scheduleRecord._3 || scheduleRecord['_3'] || '';
+            if (scheduleValue && scheduleValue.toLowerCase() !== 'schedule') {
+              console.log('Found schedule for', fullName, ':', scheduleValue);
+              schedule = scheduleValue;
+            }
           }
         }
         
