@@ -14,6 +14,62 @@ export default function AttendanceChecker() {
   const [searchName, setSearchName] = useState('');
   const [scheduleInfo, setScheduleInfo] = useState(null);
   const [xmlInput, setXmlInput] = useState('');
+  const [loadingStorage, setLoadingStorage] = useState(true);
+
+  // Load saved data on startup
+  React.useEffect(() => {
+    const loadSavedData = async () => {
+      try {
+        // Load master staff data
+        const masterResult = await window.storage.get('master-staff-data');
+        if (masterResult) {
+          const data = JSON.parse(masterResult.value);
+          setMasterData(data);
+          console.log('Loaded saved master data:', data.length, 'records');
+        }
+
+        // Load schedule data
+        const scheduleResult = await window.storage.get('schedule-data');
+        if (scheduleResult) {
+          const data = JSON.parse(scheduleResult.value);
+          setScheduleData(data);
+          console.log('Loaded saved schedule data:', data.length, 'records');
+        }
+      } catch (err) {
+        console.log('No saved data found or error loading:', err);
+      } finally {
+        setLoadingStorage(false);
+      }
+    };
+    
+    loadSavedData();
+  }, []);
+
+  const saveMasterData = async () => {
+    if (!masterData) {
+      alert('No master data to save');
+      return;
+    }
+    try {
+      await window.storage.set('master-staff-data', JSON.stringify(masterData));
+      alert(`Saved ${masterData.length} staff records! This data will auto-load next time.`);
+    } catch (err) {
+      alert('Failed to save: ' + err.message);
+    }
+  };
+
+  const saveScheduleData = async () => {
+    if (!scheduleData) {
+      alert('No schedule data to save');
+      return;
+    }
+    try {
+      await window.storage.set('schedule-data', JSON.stringify(scheduleData));
+      alert(`Saved ${scheduleData.length} schedule records! This data will auto-load next time.`);
+    } catch (err) {
+      alert('Failed to save: ' + err.message);
+    }
+  };
 
   const parseFile = async (file) => {
     const ext = file.name.split('.').pop().toLowerCase();
@@ -53,8 +109,7 @@ export default function AttendanceChecker() {
       for (let i = 0; i < requests.length; i++) {
         const req = requests[i];
         const status = req.getAttribute('Status');
-        // Include Approved AND Pending (not Cancelled)
-        if (status === 'Approved' || status === 'Pending') {
+        if (status === 'Approved') {
           const dateOff = req.getElementsByTagName('TimeOffDate')[0]?.textContent;
           const firstName = req.getElementsByTagName('Firstname')[0]?.textContent;
           const lastName = req.getElementsByTagName('Lastname')[0]?.textContent;
@@ -74,7 +129,7 @@ export default function AttendanceChecker() {
       }
       setPtoData(ptoList);
       setXmlInput('');
-      alert(`Loaded ${ptoList.length} PTO records (Approved + Pending)`);
+      alert(`Loaded ${ptoList.length} PTO records`);
     } catch (err) {
       alert('Failed to parse XML: ' + err.message);
     }
