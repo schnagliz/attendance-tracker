@@ -97,11 +97,15 @@ export default function AttendanceChecker() {
         
         let schedule = null;
         
-        // First check if they're in the schedule data
+        // Check if they're in the schedule data (with First Name + Last Name columns)
         if (scheduleData) {
           const scheduleRecord = scheduleData.find(s => {
-            const sName = (s.Name || '').toLowerCase().trim();
-            return sName === fullName.toLowerCase() || sName.includes(fullName.toLowerCase());
+            const sFirstName = (s['First Name'] || '').toLowerCase().trim();
+            const sLastName = (s['Last Name'] || '').toLowerCase().trim();
+            const pFirstName = (person['First Name'] || '').toLowerCase().trim();
+            const pLastName = (person['Last Name'] || '').toLowerCase().trim();
+            
+            return sFirstName === pFirstName && sLastName === pLastName;
           });
           
           if (scheduleRecord?.Schedule) {
