@@ -20,7 +20,6 @@ export default function AttendanceChecker() {
   React.useEffect(() => {
     const loadSavedData = () => {
       try {
-        // Load master staff data from localStorage
         const masterSaved = localStorage.getItem('master-staff-data');
         if (masterSaved) {
           const data = JSON.parse(masterSaved);
@@ -28,7 +27,6 @@ export default function AttendanceChecker() {
           console.log('Loaded saved master data:', data.length, 'records');
         }
 
-        // Load schedule data from localStorage
         const scheduleSaved = localStorage.getItem('schedule-data');
         if (scheduleSaved) {
           const data = JSON.parse(scheduleSaved);
@@ -109,7 +107,7 @@ export default function AttendanceChecker() {
       for (let i = 0; i < requests.length; i++) {
         const req = requests[i];
         const status = req.getAttribute('Status');
-        if (status === 'Approved') {
+        if (status === 'Approved' || status === 'Pending') {
           const dateOff = req.getElementsByTagName('TimeOffDate')[0]?.textContent;
           const firstName = req.getElementsByTagName('Firstname')[0]?.textContent;
           const lastName = req.getElementsByTagName('Lastname')[0]?.textContent;
@@ -129,7 +127,7 @@ export default function AttendanceChecker() {
       }
       setPtoData(ptoList);
       setXmlInput('');
-      alert(`Loaded ${ptoList.length} PTO records`);
+      alert(`Loaded ${ptoList.length} PTO records (Approved + Pending)`);
     } catch (err) {
       alert('Failed to parse XML: ' + err.message);
     }
@@ -141,7 +139,6 @@ export default function AttendanceChecker() {
       return;
     }
     
-    // Debug: log schedule data structure
     if (scheduleData && scheduleData.length > 0) {
       console.log('Schedule data loaded:', scheduleData.length, 'records');
       console.log('First schedule record:', scheduleData[0]);
@@ -166,16 +163,13 @@ export default function AttendanceChecker() {
         
         let schedule = null;
         
-        // Check if they're in the schedule data
         if (scheduleData) {
           const scheduleRecord = scheduleData.find(s => {
-            // Handle both proper column names and generic _1, _2, _3 parsing
             const sFirstName = (s['First Name'] || s._1 || s['_1'] || '').toLowerCase().trim();
             const sLastName = (s['Last Name'] || s._2 || s['_2'] || '').toLowerCase().trim();
             const pFirstName = (person['First Name'] || '').toLowerCase().trim();
             const pLastName = (person['Last Name'] || '').toLowerCase().trim();
             
-            // Skip header rows
             if (sFirstName === 'first name' || sFirstName === 'firstname') return false;
             
             const match = sFirstName === pFirstName && sLastName === pLastName;
@@ -202,7 +196,6 @@ export default function AttendanceChecker() {
           }
         }
         
-        // If not in schedule data, use department-based defaults
         if (!schedule) {
           const isInstructional = deptLower.includes('instructional') || 
                                  deptLower.includes('support services') ||
@@ -232,39 +225,56 @@ export default function AttendanceChecker() {
     setLoading(true);
     setTimeout(() => {
       try {
+        console.log('=== STARTING ANALYSIS ===');
+        console.log('Check date:', checkDate);
+        console.log('SwipedOn records:', swipedOnData.length);
+        console.log('Master records:', masterData.length);
+        
         const ptoList = ptoData ? ptoData.map(p => 
           `${(p['First Name'] || '').trim()} ${(p['Last Name'] || '').trim()}`.toLowerCase()
         ).filter(n => n) : [];
+        
         const signedInToday = new Set();
         const lateList = [];
         const onTimeList = [];
+        
         for (const row of swipedOnData) {
           const fname = (row['First Name'] || '').trim();
           const lname = (row['Last Name'] || '').trim();
           const dateIn = row['Date In'];
           const timeIn = row['In'];
+          
           if (!fname || !lname || !dateIn || !timeIn) continue;
+          
           const rowDate = dateIn.toString().trim();
           if (rowDate !== checkDate) continue;
+          
           const fullName = `${fname} ${lname}`;
           signedInToday.add(fullName.toLowerCase());
+          
           const timeParts = timeIn.toString().match(/(\d+):(\d+):(\d+)/);
           if (!timeParts) continue;
+          
           const hours = parseInt(timeParts[1]);
           const minutes = parseInt(timeParts[2]);
           const timeInMinutes = hours * 60 + minutes;
+          
           const masterRecord = masterData.find(m => {
             const mf = (m['First Name'] || '').trim().toLowerCase();
             const ml = (m['Last Name'] || '').trim().toLowerCase();
             return mf === fname.toLowerCase() && ml === lname.toLowerCase();
           });
+          
           if (!masterRecord) continue;
+          
           const dept = (masterRecord.Department || '').toLowerCase();
           const isInstructional = dept.includes('instructional') || 
                                  dept.includes('support services') ||
                                  dept.includes('curriculum') ||
                                  dept.includes('counseling');
+          
           const expectedMinutes = isInstructional ? 470 : 510;
+          
           if (timeInMinutes > expectedMinutes) {
             const late = timeInMinutes - expectedMinutes;
             lateList.push({
@@ -279,18 +289,24 @@ export default function AttendanceChecker() {
             onTimeList.push(fullName);
           }
         }
+        
         const noSignInList = [];
         masterData.forEach(person => {
           const fname = (person['First Name'] || '').trim();
           const lname = (person['Last Name'] || '').trim();
+          
           if (!fname || !lname) return;
+          
           const fullName = `${fname} ${lname}`;
           const status = (person.Status || '').toLowerCase();
+          
           const isActive = status.includes('existing') || status.includes('new hire');
           if (!isActive) return;
+          
           const nameLower = fullName.toLowerCase();
           const signedIn = signedInToday.has(nameLower);
           const onPTO = ptoList.includes(nameLower);
+          
           if (!signedIn && !onPTO) {
             noSignInList.push({
               name: fullName,
@@ -300,6 +316,7 @@ export default function AttendanceChecker() {
             });
           }
         });
+        
         setResults({
           late: lateList.sort((a, b) => b.minutesLate - a.minutesLate),
           noSignIn: noSignInList.sort((a, b) => a.name.localeCompare(b.name)),
@@ -307,6 +324,7 @@ export default function AttendanceChecker() {
           totalSignedIn: signedInToday.size,
           ptoCount: ptoList.length
         });
+        
       } catch (err) {
         alert('Error: ' + err.message);
       } finally {
@@ -320,27 +338,46 @@ export default function AttendanceChecker() {
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-8">Daily Attendance Checker</h1>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Check Date</label>
               <input type="date" value={checkDate} onChange={(e) => setCheckDate(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
             </div>
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">SwipedOn Export</label>
               <input type="file" accept=".csv,.xlsx,.xls" onChange={async (e) => { const data = await parseFile(e.target.files[0]); setSwipedOnData(data); }} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
               {swipedOnData && <span className="text-green-600 text-sm mt-1 block">✓ {swipedOnData.length} records</span>}
             </div>
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Master Staff Report</label>
-              <input type="file" accept=".csv,.xlsx,.xls" onChange={async (e) => { const data = await parseFile(e.target.files[0]); setMasterData(data); }} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
-              {masterData && <span className="text-green-600 text-sm mt-1 block">✓ {masterData.length} staff</span>}
+              <div className="flex flex-col gap-2">
+                <input type="file" accept=".csv,.xlsx,.xls" onChange={async (e) => { const data = await parseFile(e.target.files[0]); setMasterData(data); }} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                {masterData && (
+                  <>
+                    <span className="text-green-600 text-sm">✓ {masterData.length} staff loaded</span>
+                    <button onClick={saveMasterData} className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">💾 Save Master Staff Report</button>
+                  </>
+                )}
+              </div>
             </div>
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Employee Schedules (Optional)</label>
-              <input type="file" accept=".csv,.xlsx,.xls" onChange={async (e) => { const data = await parseFile(e.target.files[0]); setScheduleData(data); }} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
-              {scheduleData && <span className="text-green-600 text-sm mt-1 block">✓ Loaded</span>}
+              <div className="flex flex-col gap-2">
+                <input type="file" accept=".csv,.xlsx,.xls" onChange={async (e) => { const data = await parseFile(e.target.files[0]); setScheduleData(data); }} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                {scheduleData && (
+                  <>
+                    <span className="text-green-600 text-sm">✓ Loaded</span>
+                    <button onClick={saveScheduleData} className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">💾 Save Employee Schedules</button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div className="flex flex-col">
               <label className="block text-sm font-medium text-gray-700 mb-2">PTO Data</label>
@@ -353,6 +390,7 @@ export default function AttendanceChecker() {
               </div>
               {ptoData && <span className="text-green-600 text-sm mt-1 block">✓ {ptoData.length} PTO records</span>}
             </div>
+            
             <div className="flex flex-col">
               <label className="block text-sm font-medium text-gray-700 mb-2">Schedule Lookup</label>
               <div className="flex gap-2">
@@ -361,6 +399,7 @@ export default function AttendanceChecker() {
               </div>
             </div>
           </div>
+          
           {scheduleInfo && scheduleInfo.length > 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
               <h3 className="text-lg font-bold text-gray-800 mb-4">Schedule Information</h3>
@@ -376,7 +415,9 @@ export default function AttendanceChecker() {
               </div>
             </div>
           )}
+          
           <button onClick={analyzeAttendance} disabled={!swipedOnData || !masterData || loading} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400">{loading ? 'Analyzing...' : 'Check Attendance'}</button>
+          
           {results && (
             <div className="mt-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -397,6 +438,7 @@ export default function AttendanceChecker() {
                   <p className="text-3xl font-bold text-blue-600">{results.totalSignedIn}</p>
                 </div>
               </div>
+              
               {results.late.length > 0 && (
                 <div className="bg-white border border-gray-200 rounded-lg p-6">
                   <h3 className="text-xl font-bold text-gray-800 mb-4">Late Arrivals</h3>
@@ -408,6 +450,7 @@ export default function AttendanceChecker() {
                   </div>
                 </div>
               )}
+              
               {results.noSignIn.length > 0 && (
                 <div className="bg-white border border-gray-200 rounded-lg p-6">
                   <h3 className="text-xl font-bold text-gray-800 mb-4">Did Not Sign In</h3>
