@@ -285,7 +285,8 @@ export default function AttendanceChecker() {
               minutesLate: late,
               department: masterRecord.Department || '',
               title: masterRecord['Job Title Description'] || '',
-              location: masterRecord['School Location'] || 'Unknown Location'
+              location: masterRecord['School Location'] || 'Unknown Location',
+              locationCode: masterRecord['Location Code'] || 'Unknown'
             });
           } else {
             onTimeList.push(fullName);
@@ -314,34 +315,53 @@ export default function AttendanceChecker() {
               name: fullName,
               department: person.Department || '',
               title: person['Job Title Description'] || '',
-              location: person['School Location'] || 'Unknown Location'
+              location: person['School Location'] || 'Unknown Location',
+              locationCode: person['Location Code'] || 'Unknown'
             });
           }
         });
         
-        // Group by school
+        // Group by Location Code and School Location
         const lateBySchool = {};
         const noSignInBySchool = {};
         
         lateList.forEach(person => {
-          const school = person.location;
-          if (!lateBySchool[school]) lateBySchool[school] = [];
-          lateBySchool[school].push(person);
+          const locationCode = person.locationCode || 'Unknown';
+          const schoolLocation = person.location || 'Unknown';
+          const key = `${locationCode}|${schoolLocation}`; // Use pipe as separator
+          
+          if (!lateBySchool[key]) {
+            lateBySchool[key] = {
+              locationCode,
+              schoolLocation,
+              people: []
+            };
+          }
+          lateBySchool[key].people.push(person);
         });
         
         noSignInList.forEach(person => {
-          const school = person.location;
-          if (!noSignInBySchool[school]) noSignInBySchool[school] = [];
-          noSignInBySchool[school].push(person);
+          const locationCode = person.locationCode || 'Unknown';
+          const schoolLocation = person.location || 'Unknown';
+          const key = `${locationCode}|${schoolLocation}`;
+          
+          if (!noSignInBySchool[key]) {
+            noSignInBySchool[key] = {
+              locationCode,
+              schoolLocation,
+              people: []
+            };
+          }
+          noSignInBySchool[key].people.push(person);
         });
         
         // Sort each school's list
-        Object.keys(lateBySchool).forEach(school => {
-          lateBySchool[school].sort((a, b) => b.minutesLate - a.minutesLate);
+        Object.keys(lateBySchool).forEach(key => {
+          lateBySchool[key].people.sort((a, b) => b.minutesLate - a.minutesLate);
         });
         
-        Object.keys(noSignInBySchool).forEach(school => {
-          noSignInBySchool[school].sort((a, b) => a.name.localeCompare(b.name));
+        Object.keys(noSignInBySchool).forEach(key => {
+          noSignInBySchool[key].people.sort((a, b) => a.name.localeCompare(b.name));
         });
         
         setResults({
@@ -518,37 +538,67 @@ export default function AttendanceChecker() {
                 <>
                   {/* Late Arrivals by School */}
                   {Object.keys(results.lateBySchool).length > 0 && (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <h3 className="text-2xl font-bold text-gray-800">Late Arrivals by School</h3>
-                      {Object.entries(results.lateBySchool).sort(([a], [b]) => a.localeCompare(b)).map(([school, people]) => (
-                        <div key={school} className="bg-white border border-gray-200 rounded-lg p-6">
-                          <h4 className="text-lg font-bold text-red-700 mb-3">{school} ({people.length})</h4>
-                          <div className="overflow-x-auto">
-                            <table className="w-full">
-                              <thead><tr className="border-b"><th className="text-left py-2 px-2">Name</th><th className="text-left py-2 px-2">Title</th><th className="text-left py-2 px-2">Signed In</th><th className="text-left py-2 px-2">Expected</th><th className="text-left py-2 px-2">Late By</th><th className="text-left py-2 px-2">Department</th></tr></thead>
-                              <tbody>{people.map((person, i) => (<tr key={i} className="border-b hover:bg-gray-50"><td className="py-2 px-2 font-medium">{person.name}</td><td className="py-2 px-2 text-sm">{person.title}</td><td className="py-2 px-2">{person.signInTime}</td><td className="py-2 px-2">{person.expectedTime}</td><td className="py-2 px-2 text-red-600 font-semibold">{person.minutesLate} min</td><td className="py-2 px-2 text-sm">{person.department}</td></tr>))}</tbody>
-                            </table>
+                      {(() => {
+                        // Group by location code
+                        const byLocation = {};
+                        Object.entries(results.lateBySchool).forEach(([key, data]) => {
+                          const loc = data.locationCode;
+                          if (!byLocation[loc]) byLocation[loc] = [];
+                          byLocation[loc].push({ key, ...data });
+                        });
+                        
+                        return Object.entries(byLocation).sort(([a], [b]) => a.localeCompare(b)).map(([locationCode, schools]) => (
+                          <div key={locationCode} className="space-y-3">
+                            <h4 className="text-xl font-bold text-gray-700 bg-gray-100 px-4 py-2 rounded">{locationCode}</h4>
+                            {schools.sort((a, b) => a.schoolLocation.localeCompare(b.schoolLocation)).map(({ key, schoolLocation, people }) => (
+                              <div key={key} className="bg-white border border-gray-200 rounded-lg p-6 ml-6">
+                                <h5 className="text-lg font-bold text-red-700 mb-3">{schoolLocation} ({people.length})</h5>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full">
+                                    <thead><tr className="border-b"><th className="text-left py-2 px-2">Name</th><th className="text-left py-2 px-2">Title</th><th className="text-left py-2 px-2">Signed In</th><th className="text-left py-2 px-2">Expected</th><th className="text-left py-2 px-2">Late By</th><th className="text-left py-2 px-2">Department</th></tr></thead>
+                                    <tbody>{people.map((person, i) => (<tr key={i} className="border-b hover:bg-gray-50"><td className="py-2 px-2 font-medium">{person.name}</td><td className="py-2 px-2 text-sm">{person.title}</td><td className="py-2 px-2">{person.signInTime}</td><td className="py-2 px-2">{person.expectedTime}</td><td className="py-2 px-2 text-red-600 font-semibold">{person.minutesLate} min</td><td className="py-2 px-2 text-sm">{person.department}</td></tr>))}</tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        </div>
-                      ))}
+                        ));
+                      })()}
                     </div>
                   )}
 
                   {/* No Sign-In by School */}
                   {Object.keys(results.noSignInBySchool).length > 0 && (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <h3 className="text-2xl font-bold text-gray-800">Did Not Sign In by School</h3>
-                      {Object.entries(results.noSignInBySchool).sort(([a], [b]) => a.localeCompare(b)).map(([school, people]) => (
-                        <div key={school} className="bg-white border border-gray-200 rounded-lg p-6">
-                          <h4 className="text-lg font-bold text-orange-700 mb-3">{school} ({people.length})</h4>
-                          <div className="overflow-x-auto">
-                            <table className="w-full">
-                              <thead><tr className="border-b"><th className="text-left py-2 px-2">Name</th><th className="text-left py-2 px-2">Title</th><th className="text-left py-2 px-2">Department</th></tr></thead>
-                              <tbody>{people.map((person, i) => (<tr key={i} className="border-b hover:bg-gray-50"><td className="py-2 px-2 font-medium">{person.name}</td><td className="py-2 px-2 text-sm">{person.title}</td><td className="py-2 px-2 text-sm">{person.department}</td></tr>))}</tbody>
-                            </table>
+                      {(() => {
+                        // Group by location code
+                        const byLocation = {};
+                        Object.entries(results.noSignInBySchool).forEach(([key, data]) => {
+                          const loc = data.locationCode;
+                          if (!byLocation[loc]) byLocation[loc] = [];
+                          byLocation[loc].push({ key, ...data });
+                        });
+                        
+                        return Object.entries(byLocation).sort(([a], [b]) => a.localeCompare(b)).map(([locationCode, schools]) => (
+                          <div key={locationCode} className="space-y-3">
+                            <h4 className="text-xl font-bold text-gray-700 bg-gray-100 px-4 py-2 rounded">{locationCode}</h4>
+                            {schools.sort((a, b) => a.schoolLocation.localeCompare(b.schoolLocation)).map(({ key, schoolLocation, people }) => (
+                              <div key={key} className="bg-white border border-gray-200 rounded-lg p-6 ml-6">
+                                <h5 className="text-lg font-bold text-orange-700 mb-3">{schoolLocation} ({people.length})</h5>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full">
+                                    <thead><tr className="border-b"><th className="text-left py-2 px-2">Name</th><th className="text-left py-2 px-2">Title</th><th className="text-left py-2 px-2">Department</th></tr></thead>
+                                    <tbody>{people.map((person, i) => (<tr key={i} className="border-b hover:bg-gray-50"><td className="py-2 px-2 font-medium">{person.name}</td><td className="py-2 px-2 text-sm">{person.title}</td><td className="py-2 px-2 text-sm">{person.department}</td></tr>))}</tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        </div>
-                      ))}
+                        ));
+                      })()}
                     </div>
                   )}
                 </>
