@@ -285,8 +285,8 @@ export default function AttendanceChecker() {
               minutesLate: late,
               department: masterRecord.Department || '',
               title: masterRecord['Job Title Description'] || '',
-              location: masterRecord['School Location'] || 'Unknown Location',
-              locationCode: masterRecord['Location Code'] || 'Unknown'
+              location: (masterRecord['School Location'] || 'Unknown Location').trim(),
+              locationCode: (masterRecord['Location Code'] || 'Unknown').trim()
             });
           } else {
             onTimeList.push(fullName);
@@ -315,19 +315,31 @@ export default function AttendanceChecker() {
               name: fullName,
               department: person.Department || '',
               title: person['Job Title Description'] || '',
-              location: person['School Location'] || 'Unknown Location',
-              locationCode: person['Location Code'] || 'Unknown'
+              location: (person['School Location'] || 'Unknown Location').trim(),
+              locationCode: (person['Location Code'] || 'Unknown').trim()
             });
           }
         });
+        
+        
+        // Debug: Log unique location combinations
+        console.log('=== LOCATION DEBUG ===');
+        const uniqueLocations = new Set();
+        lateList.forEach(p => {
+          const combo = `LocationCode: "${p.locationCode}" | SchoolLocation: "${p.location}"`;
+          uniqueLocations.add(combo);
+        });
+        console.log('Unique location combinations in late list:');
+        uniqueLocations.forEach(loc => console.log(loc));
         
         // Group by Location Code and School Location
         const lateBySchool = {};
         const noSignInBySchool = {};
         
         lateList.forEach(person => {
-          const locationCode = person.locationCode || 'Unknown';
-          const schoolLocation = person.location || 'Unknown';
+          // Normalize location data
+          const locationCode = (person.locationCode || 'Unknown').trim();
+          const schoolLocation = (person.location || 'Unknown').trim();
           const key = `${locationCode}|${schoolLocation}`; // Use pipe as separator
           
           if (!lateBySchool[key]) {
@@ -341,8 +353,9 @@ export default function AttendanceChecker() {
         });
         
         noSignInList.forEach(person => {
-          const locationCode = person.locationCode || 'Unknown';
-          const schoolLocation = person.location || 'Unknown';
+          // Normalize location data
+          const locationCode = (person.locationCode || 'Unknown').trim();
+          const schoolLocation = (person.location || 'Unknown').trim();
           const key = `${locationCode}|${schoolLocation}`;
           
           if (!noSignInBySchool[key]) {
