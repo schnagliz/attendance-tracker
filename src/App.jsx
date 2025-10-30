@@ -311,30 +311,65 @@ export default function AttendanceChecker() {
               
               if (sFirstName === 'first name' || sFirstName === 'firstname') return false;
               
-              return sFirstName === pFirstName && sLastName === pLastName;
+              const match = sFirstName === pFirstName && sLastName === pLastName;
+              
+              // Debug logging for Lisa
+              if (pFirstName === 'lisa' || sFirstName === 'lisa') {
+                console.log('Lisa schedule check:', {
+                  scheduleFirstName: sFirstName,
+                  scheduleLastName: sLastName,
+                  personFirstName: pFirstName,
+                  personLastName: pLastName,
+                  match: match,
+                  scheduleRecord: s
+                });
+              }
+              
+              return match;
             });
             
             if (scheduleRecord) {
+              console.log(`Found schedule record for ${fullName}:`, scheduleRecord);
               const scheduleValue = scheduleRecord.Schedule || scheduleRecord._3 || scheduleRecord['_3'] || '';
+              console.log(`Schedule value for ${fullName}:`, scheduleValue);
+              
               if (scheduleValue && scheduleValue.toLowerCase() !== 'schedule') {
-                // Parse the schedule time (e.g., "8:30 AM - 4:30 PM" or just "8:30 AM")
+                // Parse the schedule time (e.g., "8:30 AM - 4:30 PM", "8:30-4:30", or just "8:30 AM")
                 const timeMatch = scheduleValue.match(/(\d+):(\d+)\s*(AM|PM)?/i);
                 if (timeMatch) {
                   let schedHours = parseInt(timeMatch[1]);
                   const schedMinutes = parseInt(timeMatch[2]);
                   const ampm = timeMatch[3]?.toUpperCase();
                   
-                  // Convert to 24-hour format for comparison
-                  if (ampm === 'PM' && schedHours !== 12) {
-                    schedHours += 12;
-                  } else if (ampm === 'AM' && schedHours === 12) {
-                    schedHours = 0;
+                  // If no AM/PM specified, assume based on typical work hours
+                  // Hours 6-11 without AM/PM are assumed AM, 12+ stay as-is, 1-5 could be PM
+                  if (!ampm) {
+                    if (schedHours >= 1 && schedHours <= 5) {
+                      // Ambiguous hours (1-5) - assume AM for early start times
+                      // This handles cases like "8:30-4:30" where 8:30 should be AM
+                      console.log(`No AM/PM for ${fullName}, assuming AM for hour ${schedHours}`);
+                    } else if (schedHours >= 6 && schedHours <= 11) {
+                      // 6-11 without AM/PM are assumed AM (morning)
+                      console.log(`No AM/PM for ${fullName}, hour ${schedHours} assumed AM`);
+                    }
+                    // If hour is 12+, it stays as-is in 24-hour format
+                  } else {
+                    // Convert to 24-hour format for comparison when AM/PM is specified
+                    if (ampm === 'PM' && schedHours !== 12) {
+                      schedHours += 12;
+                    } else if (ampm === 'AM' && schedHours === 12) {
+                      schedHours = 0;
+                    }
                   }
                   
                   expectedMinutes = schedHours * 60 + schedMinutes;
-                  expectedTimeDisplay = `${timeMatch[1]}:${timeMatch[2]} ${ampm || 'AM'}`;
-                  console.log(`Using schedule file for ${fullName}: ${expectedTimeDisplay}`);
+                  expectedTimeDisplay = ampm ? `${timeMatch[1]}:${timeMatch[2]} ${ampm}` : `${timeMatch[1]}:${timeMatch[2]} AM`;
+                  console.log(`✓ Using schedule file for ${fullName}: ${expectedTimeDisplay} (${expectedMinutes} minutes from ${scheduleValue})`);
                 }
+              }
+            } else {
+              if (fname.toLowerCase() === 'lisa') {
+                console.log(`No schedule record found for ${fullName} - using default`);
               }
             }
           }
