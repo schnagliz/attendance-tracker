@@ -16,6 +16,7 @@ export default function AttendanceChecker() {
   const [xmlInput, setXmlInput] = useState('');
   const [loadingStorage, setLoadingStorage] = useState(true);
   const [viewMode, setViewMode] = useState('all'); // 'all' or 'bySchool'
+  const [exceptionSchedules, setExceptionSchedules] = useState(null);
 
   // Load saved data on startup
   React.useEffect(() => {
@@ -68,6 +69,29 @@ export default function AttendanceChecker() {
     } catch (err) {
       alert('Failed to save: ' + err.message);
     }
+  };
+
+  // Check if person has an exception schedule for the given date
+  const getExceptionForPerson = (firstName, lastName, checkDate) => {
+    if (!exceptionSchedules) return null;
+    
+    const dayOfWeek = new Date(checkDate).toLocaleDateString('en-US', { weekday: 'long' });
+    
+    const exception = exceptionSchedules.find(ex => {
+      const exFirstName = (ex['First Name'] || ex.FirstName || '').trim().toLowerCase();
+      const exLastName = (ex['Last Name'] || ex.LastName || '').trim().toLowerCase();
+      const exDate = (ex.Date || '').trim();
+      const exDay = (ex.Day || ex.DayOfWeek || '').trim().toLowerCase();
+      
+      const nameMatch = exFirstName === firstName.toLowerCase() && exLastName === lastName.toLowerCase();
+      
+      // Check if exception applies to this date (specific date or day of week)
+      const dateMatch = exDate === checkDate || exDay === dayOfWeek.toLowerCase();
+      
+      return nameMatch && dateMatch;
+    });
+    
+    return exception;
   };
 
   const parseFile = async (file) => {
@@ -274,14 +298,53 @@ export default function AttendanceChecker() {
                                  dept.includes('curriculum') ||
                                  dept.includes('counseling');
           
-          const expectedMinutes = isInstructional ? 470 : 510;
+          let expectedMinutes = isInstructional ? 470 : 510; // Default: 7:50 AM or 8:30 AM
+          let expectedTimeDisplay = isInstructional ? '7:50 AM' : '8:30 AM';
+          
+          // Check if person has a custom schedule in the 12-month schedule file
+          if (scheduleData) {
+            const scheduleRecord = scheduleData.find(s => {
+              const sFirstName = (s['First Name'] || s._1 || s['_1'] || '').toLowerCase().trim();
+              const sLastName = (s['Last Name'] || s._2 || s['_2'] || '').toLowerCase().trim();
+              const pFirstName = fname.toLowerCase().trim();
+              const pLastName = lname.toLowerCase().trim();
+              
+              if (sFirstName === 'first name' || sFirstName === 'firstname') return false;
+              
+              return sFirstName === pFirstName && sLastName === pLastName;
+            });
+            
+            if (scheduleRecord) {
+              const scheduleValue = scheduleRecord.Schedule || scheduleRecord._3 || scheduleRecord['_3'] || '';
+              if (scheduleValue && scheduleValue.toLowerCase() !== 'schedule') {
+                // Parse the schedule time (e.g., "8:30 AM - 4:30 PM" or just "8:30 AM")
+                const timeMatch = scheduleValue.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+                if (timeMatch) {
+                  let schedHours = parseInt(timeMatch[1]);
+                  const schedMinutes = parseInt(timeMatch[2]);
+                  const ampm = timeMatch[3]?.toUpperCase();
+                  
+                  // Convert to 24-hour format for comparison
+                  if (ampm === 'PM' && schedHours !== 12) {
+                    schedHours += 12;
+                  } else if (ampm === 'AM' && schedHours === 12) {
+                    schedHours = 0;
+                  }
+                  
+                  expectedMinutes = schedHours * 60 + schedMinutes;
+                  expectedTimeDisplay = `${timeMatch[1]}:${timeMatch[2]} ${ampm || 'AM'}`;
+                  console.log(`Using schedule file for ${fullName}: ${expectedTimeDisplay}`);
+                }
+              }
+            }
+          }
           
           if (timeInMinutes > expectedMinutes) {
             const late = timeInMinutes - expectedMinutes;
             lateList.push({
               name: fullName,
               signInTime: `${hours}:${minutes.toString().padStart(2,'0')}`,
-              expectedTime: isInstructional ? '7:50 AM' : '8:30 AM',
+              expectedTime: expectedTimeDisplay,
               minutesLate: late,
               department: masterRecord.Department || '',
               title: masterRecord['Job Title Description'] || '',
